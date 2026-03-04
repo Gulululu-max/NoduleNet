@@ -1,0 +1,22 @@
+glone
+cd NoudleNet
+# creat env
+conda create -n noudle_net python=3.7
+conda activate noudle_net
+# install dep
+conda install -c cobda-forge pydicom
+conda install opencv
+conda install tqdm
+conda install pytorch==1.1.0 torchvision==0.3.0 cudatoolkit=10.0 -c pytorch -y
+# build/box
+cd build/box
+python setup.py install
+cd ../.. # return root
+# keshihua optipnal
+pip install tb-nightly
+
+# prepare data
+1. download LIDC-IDRI XML FILE (completed)   [And change the config.py line 24 'annos_dir' to your downloaded path]
+2. download all CT subsets(0~9) https://zenodo.org/records/3723295 and lung segmentation mask(seg-lungs-LUNA16.zip(probably))
+   [Move all downloaded CT images from the 10 folders to one folder, and change the config.py line 18 'data_dir' to the CT images directory (combining sub folders into one folder)
+    And change the config.py line 27 'lung_mask_dir' to the segmentation mask.]
