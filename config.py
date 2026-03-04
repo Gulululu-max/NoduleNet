@@ -12,7 +12,7 @@ torch.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)
 
 # Preprocessing using preserved HU in dilated part of mask
-BASE = '/home/WMQ/data/' # make sure you have the ending '/'
+BASE = '/home/WMQ/data/' # make sure you have the ending '/'  (test)
 data_config = {
     # put combined LUNA16 .mhd files into one folder
     'data_dir': BASE + 'combined',
