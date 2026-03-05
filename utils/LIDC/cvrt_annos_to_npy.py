@@ -1,12 +1,26 @@
+# 对 LIDC-IDRI 肺部结节数据集，把医生标注的 XML 格式结节注释文件，转换成可用于深度学习训练的 3D 掩码（mask）文件。
+# 输入：LIDC 数据集的 XML 标注文件、MHD 格式的肺部 CT 图像
+# 输出：按 “医生共识数” 分类的 NRRD 格式 3D 掩码（比如 1 个医生标注、2 个医生标注的结节分开保存）
 import sys
+import os
+import numpy as np
+# 获取当前脚本所在目录
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# 拼接项目根目录（向上退2级到 NoduleNet）
+root_dir = os.path.abspath(os.path.join(current_dir, '../..'))
+# 添加根目录到搜索路径
+sys.path.insert(0, root_dir)
+
+from config import config
+
 sys.path.append('./')
 from pylung.annotation import *
 from tqdm import tqdm
-import sys
+
 import nrrd
 import SimpleITK as sitk
 import cv2
-from config import config
+
 
 
 def load_itk_image(filename):
@@ -66,7 +80,8 @@ def arrs2mask(img_dir, ctr_arr_dir, save_dir):
 
     for pid in tqdm(pids, total=len(pids)):
         img, origin, spacing = load_itk_image(os.path.join(img_dir, '%s.mhd' % (pid)))
-        ctr_arrs = np.load(os.path.join(ctr_arr_dir, '%s.npy' % (pid)))
+        ctr_arrs = np.load(os.path.join(ctr_arr_dir, '%s.npy' % (pid)), allow_pickle=True)
+        # ctr_arrs = np.load(os.path.join(ctr_arr_dir, '%s.npy' % (pid))) ==correct
         cnt += len(ctr_arrs)
 
         nodule_masks = []

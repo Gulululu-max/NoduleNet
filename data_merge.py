@@ -68,12 +68,10 @@ def unzip_and_merge(subset_zip_dir, target_dir):
     print(f"📊 合并结果：总文件数={len(all_files)}, .mhd文件数={len(mhd_files)}, .raw文件数={len(raw_files)}")
 
 if __name__ == "__main__":
-    # ==================== 请修改以下两个路径 ====================
-    # 1. 存放10个subset.zip的文件夹（改成你实际的路径）
-    SUBSET_ZIP_DIR = "/home/WMQ/data/subsets"
+    # 1. 存放10个subset.zip的文件夹
+    SUBSET_ZIP_DIR = "/home/ubuntu-user/WMQ/data/subsets"
     # 2. 合并后的目标文件夹（自定义，不存在会自动创建）
-    TARGET_DIR = "/home/WMQ/data/merged_subsets"
-    # ===========================================================
+    TARGET_DIR = "/home/ubuntu-user/WMQ/data/merged_subsets"
     
     # 运行解压合并
     unzip_and_merge(SUBSET_ZIP_DIR, TARGET_DIR)

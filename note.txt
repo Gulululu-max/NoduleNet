@@ -15,8 +15,26 @@ cd ../.. # return root
 # keshihua optipnal
 pip install tb-nightly
 
-# prepare data
+# prepare data(https://aistudio.baidu.com/dataset/detail/127164/file)
 1. download LIDC-IDRI XML FILE (completed)   [And change the config.py line 24 'annos_dir' to your downloaded path]
 2. download all CT subsets(0~9) https://zenodo.org/records/3723295 and lung segmentation mask(seg-lungs-LUNA16.zip(probably))
    [Move all downloaded CT images from the 10 folders to one folder, and change the config.py line 18 'data_dir' to the CT images directory (combining sub folders into one folder)
     And change the config.py line 27 'lung_mask_dir' to the segmentation mask.]
+
+# move data
+python data_merge.py
+
+# then run 
+cd utils/LIDC
+[conda install opencv, matplotlib, pynrrd, simpleitk]
+[config baocuo shi lujin wenti,config.py de lujin]
+python cvrt_annos_to_npy.py 
+# after run 'python cvrt_annos_to_npy.py' will have two problems:
+# 1.['IndexError' of xml_file, don't worry, is ok]
+# 2.[np.load 报错：新版 numpy 默认 allow_pickle=False，读不进去旧格式 npy:
+     ctr_arrs = np.load(os.path.join(ctr_arr_dir, '%s.npy' % (pid))) 改成 ctr_arrs = np.load(os.path.join(ctr_arr_dir, '%s.npy' % (pid)), allow_pickle=True)]
+
+cvrt_annos_to_npy.py运行完成后
+核心生成两类文件：.npy（结节坐标，800 + 个）、NRRD（3D 掩码，2400 + 个）；
+NRRD 文件按「医生共识数」分 4 类保存，数量随结节标注的共识度递减；
+总文件数约 3600~4000 个，总占用空间 10~15GB（远小于原始 60G 数据集）。
