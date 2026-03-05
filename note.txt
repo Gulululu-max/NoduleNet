@@ -1,8 +1,8 @@
 glone
 cd NoudleNet
 # creat env
-conda create -n noudle_net python=3.7
-conda activate noudle_net
+conda create -n nodule_net python=3.7
+conda activate nodule_net
 # install dep
 conda install -c cobda-forge pydicom
 conda install opencv
