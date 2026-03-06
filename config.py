@@ -113,7 +113,7 @@ def lr_shedule(epoch, init_lr=0.01, total=200):
 
 train_config = {
     'net': 'NoduleNet',
-    'batch_size': 16,
+    'batch_size': 8, # 16
 
     'lr_schedule': lr_shedule,
     'optimizer': 'SGD',
@@ -124,7 +124,7 @@ train_config = {
     'epoch_save': 1,
     'epoch_rcnn': 65,
     'epoch_mask': 80,
-    'num_workers': 8,
+    'num_workers': 8, # 8
 
     'train_set_list': ['split/3_train.csv'],
     'val_set_list': ['split/3_val.csv'],

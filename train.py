@@ -17,6 +17,11 @@ from tqdm import tqdm
 import random
 import traceback
 from torch.utils.tensorboard import SummaryWriter
+import warnings
+import numpy as np
+
+# 消除ragged数组的弃用警告
+warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
 
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
@@ -246,7 +251,42 @@ def train(net, train_loader, optimizer, epoch, writer):
 
         torch.cuda.empty_cache()
 
-    rpn_stats = np.asarray(rpn_stats, np.float32)
+    # # ====================== 调试打印（关键！）======================
+    # print("===== rpn_stats 详细信息 =====")
+    # # 1. 打印rpn_stats的长度
+    # print(f"rpn_stats长度: {len(rpn_stats)}")
+    # # 2. 打印前5个元素的类型和值（避免输出太长）
+    # for idx, s in enumerate(rpn_stats[:5]):
+    #     print(f"第{idx}个元素 - 类型: {type(s)}, 值: {s}")
+    #     # 如果是Tensor，额外打印设备（CPU/GPU）
+    #     if isinstance(s, torch.Tensor):
+    #         print(f"  → Tensor设备: {s.device}, 是否CUDA: {s.is_cuda}")
+    #     # 如果是numpy数组，打印dtype和形状
+    #     elif isinstance(s, np.ndarray):
+    #         print(f"  → numpy数组dtype: {s.dtype}, 形状: {s.shape}")
+    # print("==============================\n")
+
+    # 精准适配：rpn_stats的每个元素是列表，列表内混有CUDA Tensor和普通数值
+    rpn_stats_processed = []
+    for sub_list in rpn_stats:  # 遍历rpn_stats的每个列表元素
+        processed_sub = []
+        for item in sub_list:   # 遍历每个子列表里的元素
+            # 处理CUDA Tensor：转CPU→detach→numpy
+            if isinstance(item, torch.Tensor) and item.is_cuda:
+                processed_item = item.cpu().detach().numpy()
+            # 普通数值（int/float）：直接保留
+            else:
+                processed_item = item
+            # 统一转float32，避免类型混乱
+            processed_sub.append(np.float32(processed_item))
+        # 把子列表转成numpy数组，加入最终列表
+        rpn_stats_processed.append(np.array(processed_sub, dtype=np.float32))
+
+    # 最终转成二维float32数组（适配统计逻辑）
+    rpn_stats = np.array(rpn_stats_processed, dtype=np.float32)
+
+    # rpn_stats = np.asarray([s.cpu().detach().numpy() if isinstance(s, torch.Tensor) else s for s in rpn_stats], np.float32)
+    # rpn_stats = np.asarray(rpn_stats, np.float32)
     
     print('Train Epoch %d, iter %d, total time %f, loss %f' % (epoch, j, time.time() - s, np.average(total_loss)))
     print('rpn_cls %f, rpn_reg %f, rcnn_cls %f, rcnn_reg %f, mask_loss %f' % \
@@ -342,7 +382,25 @@ def validate(net, val_loader, epoch, writer):
         rcnn_stats.append(rcnn_stat)
         mask_stats.append(mask_stat)
 
-    rpn_stats = np.asarray(rpn_stats, np.float32)
+    # rpn_stats = np.asarray(rpn_stats, np.float32)
+    # 验证阶段
+    rpn_stats_processed = []
+    for sub_list in rpn_stats:  # 遍历验证集每个batch的统计列表
+        processed_sub = []
+        for item in sub_list:   # 遍历子列表里的每个元素
+            # 处理CUDA Tensor：转CPU→detach→numpy
+            if isinstance(item, torch.Tensor) and item.is_cuda:
+                processed_item = item.cpu().detach().numpy()
+            # 普通数值：直接保留
+            else:
+                processed_item = item
+            # 统一转float32
+            processed_sub.append(np.float32(processed_item))
+        rpn_stats_processed.append(np.array(processed_sub, dtype=np.float32))
+
+    # 最终转成二维float32数组
+    rpn_stats = np.array(rpn_stats_processed, dtype=np.float32)
+
     print('Val Epoch %d, iter %d, total time %f, loss %f' % (epoch, j, time.time()-s, np.average(total_loss)))
     print('rpn_cls %f, rpn_reg %f, rcnn_cls %f, rcnn_reg %f, mask_loss %f' % \
         (np.average(rpn_cls_loss), np.average(rpn_reg_loss),

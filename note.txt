@@ -38,3 +38,8 @@ cvrt_annos_to_npy.py运行完成后
 核心生成两类文件：.npy（结节坐标，800 + 个）、NRRD（3D 掩码，2400 + 个）；
 NRRD 文件按「医生共识数」分 4 类保存，数量随结节标注的共识度递减；
 总文件数约 3600~4000 个，总占用空间 10~15GB（远小于原始 60G 数据集）。
+
+
+# then run
+[conda install scipy, scikit-image firist !!!] 
+python utils/LIDC/preprocess.py 
