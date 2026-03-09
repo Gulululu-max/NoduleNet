@@ -120,7 +120,10 @@ def make_one_rpn_target(cfg, mode, input, window, truth_box, truth_label):
             # Calculate weight for class balance
             num_fg = max(1, len(fg_index))
             num_bg = len(bg_index)
-            label_weight[bg_index] = float(num_fg)/num_bg
+            if num_bg > 0:
+                label_weight[bg_index] = float(num_fg)/num_bg
+            else:
+                label_weight[bg_index] = 0.0
 
         target_weight[fg_index] = label_weight[fg_index]
     else:
@@ -133,8 +136,11 @@ def make_one_rpn_target(cfg, mode, input, window, truth_box, truth_label):
             label_weight[bg_index] = 0
             idx = random.sample(range(len(bg_index)), min(num_neg, len(bg_index)))
             bg_index = bg_index[idx]
-            label_weight[bg_index] = 1.0 / len(bg_index)
-
+            # label_weight[bg_index] = 1.0 / len(bg_index)
+            if len(bg_index) > 0:
+                label_weight[bg_index] = 1.0 / len(bg_index)
+            else:
+               label_weight[bg_index] = 0.0
 
     label = Variable(torch.from_numpy(label)).cuda()
     label_assign = Variable(torch.from_numpy(label_assign)).cuda()

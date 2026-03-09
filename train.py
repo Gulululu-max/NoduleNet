@@ -7,7 +7,7 @@ from utils.util import Logger
 from config import train_config, data_config, net_config, config
 import pprint
 from torch.utils.data import DataLoader, ConcatDataset
-from torch.autograd import Variable
+# from torch.autograd import Variable
 import torch
 import numpy as np
 import argparse
@@ -18,10 +18,16 @@ import random
 import traceback
 from torch.utils.tensorboard import SummaryWriter
 import warnings
-import numpy as np
 
 # 消除ragged数组的弃用警告
 warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
+
+# 开启TF32（RTX4090原生支持，提速50%）
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+# 关闭不必要的同步（减少CPU/GPU通信）
+torch.backends.cudnn.sync_batch_norm = False
+torch.cuda.synchronize()  # 仅在epoch结束时同步
 
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
@@ -217,7 +223,11 @@ def train(net, train_loader, optimizer, epoch, writer):
     mask_stats = []
 
     for j, (input, truth_box, truth_label, truth_mask, masks) in tqdm(enumerate(train_loader), total=len(train_loader), desc='Train %d' % epoch):
-        input = Variable(input).cuda()
+        #input = Variable(input).cuda()
+        input = input.cuda()
+        # print("---------111---------",truth_box)
+        # print("---------222---------",truth_label)
+        # print("--------3333--------",truth_mask)
         truth_box = np.array(truth_box)
         truth_label = np.array(truth_label)
         truth_mask = np.array(truth_mask)
@@ -229,12 +239,12 @@ def train(net, train_loader, optimizer, epoch, writer):
         loss.backward()
         optimizer.step()
 
-        rpn_cls_loss.append(net.rpn_cls_loss.cpu().data.item())
-        rpn_reg_loss.append(net.rpn_reg_loss.cpu().data.item())
-        rcnn_cls_loss.append(net.rcnn_cls_loss.cpu().data.item())
-        rcnn_reg_loss.append(net.rcnn_reg_loss.cpu().data.item())
-        mask_loss.append(net.mask_loss.cpu().data.item())
-        total_loss.append(loss.cpu().data.item())
+        rpn_cls_loss.append(net.rpn_cls_loss.cpu().item())
+        rpn_reg_loss.append(net.rpn_reg_loss.cpu().item())
+        rcnn_cls_loss.append(net.rcnn_cls_loss.cpu().item())
+        rcnn_reg_loss.append(net.rcnn_reg_loss.cpu().item())
+        mask_loss.append(net.mask_loss.cpu().item())
+        total_loss.append(loss.cpu().item())
         rpn_stats.append(rpn_stat)
         rcnn_stats.append(rcnn_stat)
         mask_stats.append(mask_stat)
@@ -250,21 +260,6 @@ def train(net, train_loader, optimizer, epoch, writer):
             del net.mask_probs, net.mask_targets, net.crop_boxes
 
         torch.cuda.empty_cache()
-
-    # # ====================== 调试打印（关键！）======================
-    # print("===== rpn_stats 详细信息 =====")
-    # # 1. 打印rpn_stats的长度
-    # print(f"rpn_stats长度: {len(rpn_stats)}")
-    # # 2. 打印前5个元素的类型和值（避免输出太长）
-    # for idx, s in enumerate(rpn_stats[:5]):
-    #     print(f"第{idx}个元素 - 类型: {type(s)}, 值: {s}")
-    #     # 如果是Tensor，额外打印设备（CPU/GPU）
-    #     if isinstance(s, torch.Tensor):
-    #         print(f"  → Tensor设备: {s.device}, 是否CUDA: {s.is_cuda}")
-    #     # 如果是numpy数组，打印dtype和形状
-    #     elif isinstance(s, np.ndarray):
-    #         print(f"  → numpy数组dtype: {s.dtype}, 形状: {s.shape}")
-    # print("==============================\n")
 
     # 精准适配：rpn_stats的每个元素是列表，列表内混有CUDA Tensor和普通数值
     rpn_stats_processed = []
@@ -365,19 +360,19 @@ def validate(net, val_loader, epoch, writer):
     s = time.time()
     for j, (input, truth_box, truth_label, truth_mask, masks) in tqdm(enumerate(val_loader), total=len(val_loader), desc='Val %d' % epoch):
         with torch.no_grad():
-            input = Variable(input).cuda()
+            input = input.cuda()
             truth_box = np.array(truth_box)
             truth_label = np.array(truth_label)
 
             net(input, truth_box, truth_label, truth_mask, masks)
             loss, rpn_stat, rcnn_stat, mask_stat = net.loss()
 
-        rpn_cls_loss.append(net.rpn_cls_loss.cpu().data.item())
-        rpn_reg_loss.append(net.rpn_reg_loss.cpu().data.item())
-        rcnn_cls_loss.append(net.rcnn_cls_loss.cpu().data.item())
-        rcnn_reg_loss.append(net.rcnn_reg_loss.cpu().data.item())
-        mask_loss.append(net.mask_loss.cpu().data.item())
-        total_loss.append(loss.cpu().data.item())
+        rpn_cls_loss.append(net.rpn_cls_loss.cpu().item())
+        rpn_reg_loss.append(net.rpn_reg_loss.cpu().item())
+        rcnn_cls_loss.append(net.rcnn_cls_loss.cpu().item())
+        rcnn_reg_loss.append(net.rcnn_reg_loss.cpu().item())
+        mask_loss.append(net.mask_loss.cpu().item())
+        total_loss.append(loss.cpu().item())
         rpn_stats.append(rpn_stat)
         rcnn_stats.append(rcnn_stat)
         mask_stats.append(mask_stat)

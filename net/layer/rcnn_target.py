@@ -149,15 +149,31 @@ def make_one_rcnn_target(cfg, input, proposal, truth_box, truth_label):
 
 
 def make_rcnn_target(cfg, mode, inputs, proposals, truth_boxes, truth_labels, truth_masks):
-    truth_boxes = copy.deepcopy(truth_boxes)
-    truth_labels = copy.deepcopy(truth_labels)
-    truth_masks = copy.deepcopy(truth_masks)
-    batch_size = len(inputs)
-    for b in range(batch_size):
-        index = np.where(truth_labels[b] > 0)[0]
-        truth_boxes [b] = truth_boxes [b][index]
-        truth_labels[b] = truth_labels[b][index]
+    # 确保输入是数组
+    if not isinstance(truth_labels, np.ndarray):
+        raise TypeError(f"truth_labels should be np.ndarray, got {type(truth_labels)}")
 
+    # truth_* 可能来自 collate，被 padding 为固定形状
+    # 先把它们取消 padding，变成 list-of-arrays
+    batch_size = len(inputs)
+    new_tb = []
+    new_tl = []
+    new_tm = []
+
+    for b in range(batch_size):
+        if b >= truth_labels.shape[0]:
+            break  # 防止超出范围
+        # 找出有效标签的索引 (labels 用 -1 填充，所以有效是 >= 0)
+        idx = np.where(truth_labels[b] >= 0)[0]
+        new_tb.append(truth_boxes[b][idx])
+        new_tl.append(truth_labels[b][idx])
+        new_tm.append(truth_masks[b][idx])
+
+    truth_boxes = new_tb
+    truth_labels = new_tl
+    truth_masks = new_tm
+
+    # 以下代码保持不变
     proposals = proposals.cpu().data.numpy()
     sampled_proposals = []
     sampled_labels = []
@@ -172,16 +188,15 @@ def make_rcnn_target(cfg, mode, inputs, proposals, truth_boxes, truth_labels, tr
         truth_label = truth_labels[b]
 
         if len(proposals) == 0:
-            proposal = np.zeros((0, 8),np.float32)
+            proposal = np.zeros((0, 8), np.float32)
         else:
-            proposal = proposals[proposals[:,0] == b]
+            proposal = proposals[proposals[:, 0] == b]
 
-        # Add ground truth box to proposal, so that even if the RPN branch fails to find something,
-        # we can still get classification branch to work
+        # Add ground truth box to proposal
         proposal = add_truth_box_to_proposal(cfg, proposal, b, truth_box, truth_label)
 
         sampled_proposal, sampled_label, sampled_assign, sampled_target = \
-           make_one_rcnn_target(cfg, input, proposal, truth_box, truth_label)
+            make_one_rcnn_target(cfg, input, proposal, truth_box, truth_label)
 
         sampled_proposals.append(sampled_proposal)
         sampled_labels.append(sampled_label)
@@ -189,9 +204,9 @@ def make_rcnn_target(cfg, mode, inputs, proposals, truth_boxes, truth_labels, tr
         sampled_targets.append(sampled_target)
 
     sampled_proposals = torch.cat(sampled_proposals, 0)
-    sampled_labels    = torch.cat(sampled_labels, 0)
-    sampled_targets   = torch.cat(sampled_targets, 0)
-    sampled_assigns   = np.hstack(sampled_assigns)
+    sampled_labels = torch.cat(sampled_labels, 0)
+    sampled_targets = torch.cat(sampled_targets, 0)
+    sampled_assigns = np.hstack(sampled_assigns)
 
     return sampled_proposals, sampled_labels, sampled_assigns, sampled_targets
 

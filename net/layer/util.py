@@ -17,9 +17,10 @@ def box_transform(windows, targets, weight):
     dz = wz * (tz - bz) / bd
     dy = wy * (ty - by) / bh
     dx = wx * (tx - bx) / bw
-    dd = wd * np.log(td / bd)
-    dh = wh * np.log(th / bh)
-    dw = ww * np.log(tw / bw)
+    eps = 1e-8  # 极小值，避免零
+    dd = wd * np.log((td + eps) / (bd + eps))
+    dh = wh * np.log((th + eps) / (bh + eps))
+    dw = ww * np.log((tw + eps) / (bw + eps))
 
     deltas = np.vstack((dz, dy, dx, dd, dh, dw)).transpose()
     return deltas
