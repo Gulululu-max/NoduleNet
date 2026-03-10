@@ -18,16 +18,16 @@ import random
 import traceback
 from torch.utils.tensorboard import SummaryWriter
 import warnings
+import subprocess
 
 # 消除ragged数组的弃用警告
 warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
 
-# 开启TF32（RTX4090原生支持，提速50%）
-torch.backends.cuda.matmul.allow_tf32 = True
-torch.backends.cudnn.allow_tf32 = True
-# 关闭不必要的同步（减少CPU/GPU通信）
-torch.backends.cudnn.sync_batch_norm = False
-torch.cuda.synchronize()  # 仅在epoch结束时同步
+# # 开启TF32（RTX4090原生支持，提速50%）
+# torch.backends.cudnn.benchmark = True
+# torch.backends.cuda.matmul.allow_tf32 = True
+# torch.backends.cudnn.allow_tf32 = True
+
 
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
@@ -222,12 +222,43 @@ def train(net, train_loader, optimizer, epoch, writer):
     rcnn_stats = []
     mask_stats = []
 
-    for j, (input, truth_box, truth_label, truth_mask, masks) in tqdm(enumerate(train_loader), total=len(train_loader), desc='Train %d' % epoch):
-        #input = Variable(input).cuda()
-        input = input.cuda()
-        # print("---------111---------",truth_box)
-        # print("---------222---------",truth_label)
-        # print("--------3333--------",truth_mask)
+# # jiancha gpu liyong
+#     for i, (input, truth_box, truth_label, truth_mask, masks) in enumerate(train_loader):
+#         start = time.time()
+
+#         # 前向传播
+#         net(input, truth_box, truth_label, truth_mask, masks)
+
+#         # proposals 数量
+#         num_props = len(net.rpn_proposals) if hasattr(net, "rpn_proposals") else 0
+
+#         # GPU 利用率
+#         gpu_util, gpu_mem = get_gpu_utilization()
+
+#         end = time.time()
+#         print(f"[Epoch {epoch} Batch {i}] "
+#               f"proposals={num_props} "
+#               f"time={end-start:.3f}s "
+#               f"gpu_util={gpu_util}% "
+#               f"gpu_mem={gpu_mem}MB")
+# # jiancha gpu liyong
+
+
+    # 使用显式迭代器以测量 load_time vs compute_time
+    data_iter = iter(train_loader)
+    for j in tqdm(range(len(train_loader)), total=len(train_loader), desc='Train %d' % epoch):
+        t_load_start = time.time()
+        try:
+            batch = next(data_iter)
+        except StopIteration:
+            break
+        load_time = time.time() - t_load_start
+
+        t_compute_start = time.time()
+        (input, truth_box, truth_label, truth_mask, masks) = batch
+
+        # 将数据移动到 GPU（配合 pin_memory=True）
+        input = input.cuda(non_blocking=True)
         truth_box = np.array(truth_box)
         truth_label = np.array(truth_label)
         truth_mask = np.array(truth_mask)
@@ -238,7 +269,9 @@ def train(net, train_loader, optimizer, epoch, writer):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        compute_time = time.time() - t_compute_start
 
+        # 原有统计与清理（保持不变）
         rpn_cls_loss.append(net.rpn_cls_loss.cpu().item())
         rpn_reg_loss.append(net.rpn_reg_loss.cpu().item())
         rcnn_cls_loss.append(net.rcnn_cls_loss.cpu().item())
@@ -248,6 +281,10 @@ def train(net, train_loader, optimizer, epoch, writer):
         rpn_stats.append(rpn_stat)
         rcnn_stats.append(rcnn_stat)
         mask_stats.append(mask_stat)
+
+        # 每隔若干 batch 打印 load/compute 信息，便于定位瓶颈
+        if j % 10 == 0:
+            print(f"[batch {j}] load_time={load_time:.3f}s compute_time={compute_time:.3f}s gpu_mem={torch.cuda.memory_allocated()/1e9:.3f}GB")
 
         del input, truth_box, truth_label
         del net.rpn_proposals, net.detections
@@ -260,6 +297,54 @@ def train(net, train_loader, optimizer, epoch, writer):
             del net.mask_probs, net.mask_targets, net.crop_boxes
 
         torch.cuda.empty_cache()
+    # net.set_mode('train')
+    # s = time.time()
+    # rpn_cls_loss, rpn_reg_loss = [], []
+    # rcnn_cls_loss, rcnn_reg_loss = [], []
+    # mask_loss = []
+    # total_loss = []
+    # rpn_stats = []
+    # rcnn_stats = []
+    # mask_stats = []
+
+    # for j, (input, truth_box, truth_label, truth_mask, masks) in tqdm(enumerate(train_loader), total=len(train_loader), desc='Train %d' % epoch):
+    #     #input = Variable(input).cuda()
+    #     input = input.cuda()
+    #     # print("---------111---------",truth_box)
+    #     # print("---------222---------",truth_label)
+    #     # print("--------3333--------",truth_mask)
+    #     truth_box = np.array(truth_box)
+    #     truth_label = np.array(truth_label)
+    #     truth_mask = np.array(truth_mask)
+
+    #     net(input, truth_box, truth_label, truth_mask, masks)
+
+    #     loss, rpn_stat, rcnn_stat, mask_stat = net.loss()
+    #     optimizer.zero_grad()
+    #     loss.backward()
+    #     optimizer.step()
+
+    #     rpn_cls_loss.append(net.rpn_cls_loss.cpu().item())
+    #     rpn_reg_loss.append(net.rpn_reg_loss.cpu().item())
+    #     rcnn_cls_loss.append(net.rcnn_cls_loss.cpu().item())
+    #     rcnn_reg_loss.append(net.rcnn_reg_loss.cpu().item())
+    #     mask_loss.append(net.mask_loss.cpu().item())
+    #     total_loss.append(loss.cpu().item())
+    #     rpn_stats.append(rpn_stat)
+    #     rcnn_stats.append(rcnn_stat)
+    #     mask_stats.append(mask_stat)
+
+    #     del input, truth_box, truth_label
+    #     del net.rpn_proposals, net.detections
+    #     del net.total_loss, net.rpn_cls_loss, net.rpn_reg_loss, net.rcnn_cls_loss, net.rcnn_reg_loss, net.mask_loss
+    #     del net.rpn_logits_flat, net.rpn_deltas_flat
+
+    #     if net.use_rcnn:
+    #         del net.rcnn_logits, net.rcnn_deltas
+    #     if net.use_mask:
+    #         del net.mask_probs, net.mask_targets, net.crop_boxes
+
+    #     torch.cuda.empty_cache()
 
     # 精准适配：rpn_stats的每个元素是列表，列表内混有CUDA Tensor和普通数值
     rpn_stats_processed = []
@@ -476,6 +561,18 @@ def print_confusion_matrix(confusion_matrix):
     for i in range(len(config['roi_names']) + 1):
         print(line_new.format(i, *list(confusion_matrix[i])))
         
+def get_gpu_utilization():
+    try:
+        # 调用 nvidia-smi 获取 GPU 利用率
+        result = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used",
+             "--format=csv,noheader,nounits"]
+        )
+        util, mem = result.decode("utf-8").strip().split(",")
+        return int(util), int(mem)
+    except Exception:
+        return -1, -1
+
 
 if __name__ == '__main__':
     main()

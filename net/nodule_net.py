@@ -314,13 +314,26 @@ class CropRoi(nn.Module):
             c0, _ = torch.max(c0, 0)
             c1, _ = torch.min(c1, 0)
 
-            # Slice 0 dim, should never happen
-            if np.any((c1 - c0).cpu().data.numpy() < 1):
-                print(p)
-                print('c0:', c0, ', c1:', c1)
+            # 防御性检查：确保每个维度至少有 1 像素
+            if (c1[0] - c0[0]) < 1 or (c1[1] - c0[1]) < 1 or (c1[2] - c0[2]) < 1:
+                # 跳过这个 proposal，不参与训练
+                continue
+
             crop = f[b, :, c0[0]:c1[0], c0[1]:c1[1], c0[2]:c1[2]]
             crop = F.adaptive_max_pool3d(crop, self.rcnn_crop_size)
             crops.append(crop)
+
+            if len(crops) == 0:
+                # 如果所有 proposal 都无效，返回一个最小尺寸的零张量，避免崩溃
+                return torch.zeros((1, f.shape[1], *self.rcnn_crop_size), device=f.device)
+
+            # Slice 0 dim, should never happen
+            # if np.any((c1 - c0).cpu().data.numpy() < 1):
+            #     print(p)
+            #     print('c0:', c0, ', c1:', c1)
+            # crop = f[b, :, c0[0]:c1[0], c0[1]:c1[1], c0[2]:c1[2]]
+            # crop = F.adaptive_max_pool3d(crop, self.rcnn_crop_size)
+            # crops.append(crop)
 
         crops = torch.stack(crops)
 

@@ -18,6 +18,74 @@ def rcnn_encode(window, truth_box, weight):
 def rcnn_decode(window, delta, weight):
     return  box_transform_inv(window, delta, weight)
 
+# def rcnn_nms(cfg, mode, inputs, proposals, logits, deltas):
+
+#     if mode in ['train']:
+#         nms_pre_score_threshold = cfg['rcnn_train_nms_pre_score_threshold']
+#         nms_overlap_threshold   = cfg['rcnn_train_nms_overlap_threshold']
+#     elif mode in ['valid', 'test', 'eval']:
+#         nms_pre_score_threshold = cfg['rcnn_test_nms_pre_score_threshold']
+#         nms_overlap_threshold   = cfg['rcnn_test_nms_overlap_threshold']
+#     else:
+#         raise ValueError('rcnn_nms(): invalid mode = %s?' % mode)
+
+#     batch_size, _, depth, height, width = inputs.size()
+#     num_class = cfg['num_class']
+
+#     # softmax 必须指定 dim
+#     probs = F.softmax(logits, dim=1).cpu().data.numpy()
+#     deltas = deltas.cpu().data.numpy().reshape(-1, num_class, 6)
+#     proposals = proposals.cpu().data.numpy()
+
+#     # Debug 打印，帮助定位数量不一致
+#     # print("rcnn_nms: proposals", proposals.shape, "probs", probs.shape, "deltas", deltas.shape)
+
+#     detections = []
+#     keeps = []
+#     for b in range(batch_size):
+#         detection = [np.empty((0, 9), np.float32),]
+
+#         index = np.where(proposals[:, 0] == b)[0]
+#         # 防御性过滤，避免越界
+#         index = index[index < len(probs)]
+
+#         # 限制 proposals 数量，避免显存爆炸 !!!
+#         max_props = 200
+#         if len(index) > max_props:
+#             index = index[:max_props]
+
+#         if len(index) > 0:
+#             prob  = probs[index]
+#             delta = deltas[index]
+#             proposal = proposals[index]
+
+#             for j in range(1, num_class):  # skip background
+#                 idx = np.where(prob[:, j] > nms_pre_score_threshold)[0]
+#                 if len(idx) > 0:
+#                     p = prob[idx, j].reshape(-1, 1)
+#                     d = delta[idx, j]
+#                     box = rcnn_decode(proposal[idx, 2:8], d, cfg['box_reg_weight'])
+#                     box = clip_boxes(box, inputs.shape[2:])
+#                     js = np.expand_dims(np.array([j] * len(p)), axis=-1)
+#                     output = np.concatenate((p, box, js), 1)
+
+#                     if len(output) > 0:
+#                         output = torch.from_numpy(output).float()
+#                         output, keep = torch_nms(output, nms_overlap_threshold)
+
+#                     num = len(output)
+#                     if num > 0:
+#                         det = np.zeros((num, 9), np.float32)
+#                         det[:, 0] = b
+#                         det[:, 1:] = output
+#                         detection.append(det)
+#                         keeps.extend(index[idx[keep.numpy()]].tolist())
+
+#         detection = np.vstack(detection)
+#         detections.append(detection)
+
+#     detections = Variable(torch.from_numpy(np.vstack(detections))).cuda()
+#     return detections, keeps
 
 def rcnn_nms(cfg, mode, inputs, proposals, logits, deltas):
 
@@ -53,6 +121,7 @@ def rcnn_nms(cfg, mode, inputs, proposals, logits, deltas):
         detection = [np.empty((0, 9), np.float32),]
 
         index = np.where(proposals[:,0] == b)[0]
+        index = index[index < len(probs)]  # 过滤掉越界值 fangyuxing guolv
         if len(index)>0:
             prob  = probs[index]
             delta = deltas[index]

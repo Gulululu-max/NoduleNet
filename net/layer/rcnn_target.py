@@ -155,14 +155,14 @@ def make_rcnn_target(cfg, mode, inputs, proposals, truth_boxes, truth_labels, tr
 
     # truth_* 可能来自 collate，被 padding 为固定形状
     # 先把它们取消 padding，变成 list-of-arrays
-    batch_size = len(inputs)
+    # batch_size = len(inputs)
     new_tb = []
     new_tl = []
     new_tm = []
 
-    for b in range(batch_size):
-        if b >= truth_labels.shape[0]:
-            break  # 防止超出范围
+    for b in range(len(truth_labels)): # batch_size
+        # if b >= truth_labels.shape[0]:
+        #     break  # 防止超出范围
         # 找出有效标签的索引 (labels 用 -1 填充，所以有效是 >= 0)
         idx = np.where(truth_labels[b] >= 0)[0]
         new_tb.append(truth_boxes[b][idx])
